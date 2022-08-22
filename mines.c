@@ -665,13 +665,15 @@ int main(int argc, char **argv)
 
     // Disable buffer
     struct termios old = {0};
+    struct termios new;
     if (tcgetattr(0, &old) < 0)
         eprintf("Failed to get console attributes.\n");
-    old.c_lflag &= ~ICANON;
-    old.c_lflag &= ~ECHO;
-    old.c_cc[VMIN] = 1;
-    old.c_cc[VTIME] = 0;
-    if (tcsetattr(0, TCSANOW, &old) < 0)
+    memcpy(&new, &old, sizeof(struct termios));
+    new.c_lflag &= ~ICANON;
+    new.c_lflag &= ~ECHO;
+    new.c_cc[VMIN] = 1;
+    new.c_cc[VTIME] = 0;
+    if (tcsetattr(0, TCSANOW, &new) < 0)
         eprintf("Failed to set console attributes.\n");
 
     if (ct == 1)
@@ -685,6 +687,10 @@ int main(int argc, char **argv)
     int e = RC_NEW_GAME;
     while (e == RC_NEW_GAME)
         e = game_start(w, h, m);
+
+    // "Fix" terminal
+    if (tcsetattr(0, TCSANOW, &old) < 0)
+        eprintf("Failed to restore console attributes.\n");
 
     fclose(debug_stream);
 

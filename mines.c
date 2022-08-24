@@ -628,13 +628,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (w == 0)
-    {
-        fprintf(stderr, "No difficulty set!\n");
-        fprintf(stderr, "Usage: \"%s\" -d <e|n|h> [-f]\n", argv[0]);
-        return 1;
-    }
-
     if (df == NULL)
     {
         debug_stream = fopen("/dev/null", "w");
@@ -642,6 +635,14 @@ int main(int argc, char **argv)
     else
     {
         debug_stream = fopen(df, "w");
+    }
+
+    if (ct == 1)
+    {
+        eprintf("Ignoring field size and mine count due to color test.\n");
+        color_test();
+        fclose(debug_stream);
+        return 0;
     }
 
     if (f)
@@ -661,6 +662,13 @@ int main(int argc, char **argv)
         eprintf("w %d h %d m %d\n", w, h);
     }
 
+    if (m == 0)
+    {
+        fprintf(stderr, "No difficulty set!\n");
+        fprintf(stderr, "Usage: \"%s\" -d <e|n|h> [-f]\n", argv[0]);
+        return 1;
+    }
+
     srand(time(NULL));
 
     // Disable buffer
@@ -675,14 +683,6 @@ int main(int argc, char **argv)
     new.c_cc[VTIME] = 0;
     if (tcsetattr(0, TCSANOW, &new) < 0)
         eprintf("Failed to set console attributes.\n");
-
-    if (ct == 1)
-    {
-        eprintf("Ignoring field size and mine count due to color test.\n");
-        color_test();
-        fclose(debug_stream);
-        return 0;
-    }
 
     int e = RC_NEW_GAME;
     while (e == RC_NEW_GAME)

@@ -465,6 +465,9 @@ int main(int argc, char **argv)
     minefield_t *field = minefield_create(10, 10, 10);
     if (!field) {
         terminal_try_restore(&old);
+
+        printf("Failed to create minefield!\n");
+        return 1;
     }
 
     printf("\033[?1049h"); // enable alternative screen buffer

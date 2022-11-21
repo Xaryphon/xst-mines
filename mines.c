@@ -261,7 +261,7 @@ void print_status_line(minefield_t *field, unsigned x, unsigned y)
     }
 }
 
-char minefield_get_mine_visual(minefield_t *field, unsigned x, unsigned y)
+unsigned char minefield_get_mine_visual(minefield_t *field, unsigned x, unsigned y)
 {
     mine_t mine = minefield_get_mine(field, x, y);
 
@@ -275,18 +275,45 @@ char minefield_get_mine_visual(minefield_t *field, unsigned x, unsigned y)
     {
         if (mine.is_mine)
             return 'x';
-        else if (mine.nearby == 0)
-            return ' ';
         else
             return '0' + mine.nearby;
     }
 }
 
-void minefield_draw_full(minefield_t *field)
+// This thing takes 2 kB on 64-bit!
+const char *const _mine_visual_colored_map[UCHAR_MAX] = {
+    ['.'] = ".",
+    ['f'] = "\033[1;36mf", // bold, cyan
+    ['?'] = "\033[1;34m?", // bold, blue
+    ['x'] = "\033[1;31mx", // bold, red
+    ['0'] = " ",
+    ['1'] = "\033[1;32m1", // bold, green
+    ['2'] = "\033[32m2",   // green
+    ['3'] = "\033[1;33m3", // bold, yellow
+    ['4'] = "\033[33m4",   // yellow
+    ['5'] = "\033[1;31m5", // bold, red
+    ['6'] = "\033[31m6",   // red
+    ['7'] = "\033[35m7",   // magenta
+    ['8'] = "\033[1;35m8", // bold, magenta
+};
+
+void _minefield_draw_mine(minefield_t *field, unsigned cursor_x, unsigned cursor_y, unsigned x, unsigned y)
+{
+    if (x == cursor_x && y == cursor_y)
+        printf("\033[7m"); // reverse video
+
+    unsigned char c = minefield_get_mine_visual(field, x, y);
+    assert(_mine_visual_colored_map[c]);
+    printf("%s ", _mine_visual_colored_map[c]);
+
+    printf("\033[m"); // reset attributes
+}
+
+void minefield_draw_full(minefield_t *field, unsigned cursor_x, unsigned cursor_y)
 {
     for (unsigned y = 0; y < field->height; y++) {
         for (unsigned x = 0; x < field->width; x++) {
-            printf("%c ", minefield_get_mine_visual(field, x, y));
+            _minefield_draw_mine(field, cursor_x, cursor_y, x, y);
         }
         printf("\n");
     }
@@ -304,7 +331,7 @@ void game_loop(minefield_t **field_ptr)
     for (;;) {
         print_status_line(*field_ptr, cursor_x, cursor_y);
         printf("\033[H");
-        minefield_draw_full(field);
+        minefield_draw_full(field, cursor_x, cursor_y);
         printf("\033[%d;%dH", cursor_y + 1, cursor_x * 2 + 1); // Set cursor position
 
         fflush(stdout);
@@ -374,9 +401,11 @@ int main(int argc, char **argv)
 
     printf("\033[?1049h"); // enable alternative screen buffer
     printf("\033[3J\033[H\033[J"); // clear the screen, move cursor to top left, clear again
+    printf("\033[?25l"); // hide cursor
 
     game_loop(&field);
 
+    printf("\033[?25h"); // show cursor
     printf("\033[?1049l"); // disable alternative screen buffer
 
     minefield_destroy(field);

@@ -134,9 +134,9 @@ mine_t minefield_get_mine(minefield_t *field, unsigned x, unsigned y)
 
 bool _minefield_mine_around(minefield_t *field, unsigned x, unsigned y);
 
-bool _minefield_mine(minefield_t *field, unsigned x, unsigned y)
+bool _minefield_mine(minefield_t *field, unsigned x, unsigned y, bool is_user_input)
 {
-    mine_t *m = &field->data[y * field->width + x];
+    mine_t *m = minefield_get_mine_ptr(field, x, y);
     switch (m->state) {
     case MINE_STATE_NORMAL:
         m->state = MINE_STATE_MINED;
@@ -153,7 +153,25 @@ bool _minefield_mine(minefield_t *field, unsigned x, unsigned y)
         }
     case MINE_STATE_FLAGGED:
     case MINE_STATE_UNKNOWN:
+        break;
     case MINE_STATE_MINED:
+        if (is_user_input) {
+            unsigned nearby_flags = 0;
+
+            unsigned x0 = x == 0 ? 0 : x - 1;
+            unsigned y0 = y == 0 ? 0 : y - 1;
+            unsigned x1 = x == field->width - 1  ? field->width - 1  : x + 1;
+            unsigned y1 = y == field->height - 1 ? field->height - 1 : y + 1;
+            for (unsigned y = y0; y <= y1; y++) {
+                for (unsigned x = x0; x <= x1; x++) {
+                    nearby_flags += minefield_get_mine(field, x, y).state == MINE_STATE_FLAGGED;
+                }
+            }
+
+            // NOTE: This expects m->state != FLAGGED
+            if (nearby_flags == m->nearby)
+                return _minefield_mine_around(field, x, y);
+        }
         break;
     }
     return true;
@@ -167,7 +185,7 @@ bool _minefield_mine_around(minefield_t *field, unsigned x, unsigned y)
     unsigned y1 = y == field->height - 1 ? field->height - 1 : y + 1;
     for (unsigned y = y0; y <= y1; y++) {
         for (unsigned x = x0; x <= x1; x++) {
-            if (!_minefield_mine(field, x, y))
+            if (!_minefield_mine(field, x, y, false))
                 return false;
         }
     }
@@ -182,7 +200,7 @@ void minefield_mine(minefield_t *field, unsigned x, unsigned y)
     if (field->status == MINEFIELD_STATUS_EMPTY)
         minefield_generate(field, x, y);
 
-    _minefield_mine(field, x, y);
+    _minefield_mine(field, x, y, true);
 }
 
 void minefield_flag(minefield_t *field, unsigned x, unsigned y)

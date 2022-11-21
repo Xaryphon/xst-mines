@@ -337,19 +337,41 @@ void minefield_draw_full(minefield_t *field, unsigned cursor_x, unsigned cursor_
     }
 }
 
+void minefield_draw_at(minefield_t *field, unsigned cursor_x, unsigned cursor_y, unsigned x, unsigned y)
+{
+    printf("\033[%d;%dH", y + 1, x * 2 + 1); // Set cursor position
+    _minefield_draw_mine(field, cursor_x, cursor_y, x, y);
+}
+
 void game_loop(minefield_t **field_ptr)
 {
     minefield_t *field = *field_ptr;
     char c;
 #define read_char() if (read(0, &c, 1) != 1) return
 
+    unsigned old_cursor_x = 0;
+    unsigned old_cursor_y = 0;
     unsigned cursor_x = 0;
     unsigned cursor_y = 0;
+
+    bool render_full = true;
 
     for (;;) {
         print_status_line(*field_ptr, cursor_x, cursor_y);
         printf("\033[H");
-        minefield_draw_full(field, cursor_x, cursor_y);
+
+        if (render_full) {
+            minefield_draw_full(field, cursor_x, cursor_y);
+            render_full = false;
+            old_cursor_x = cursor_x;
+            old_cursor_y = cursor_y;
+        } else if (old_cursor_x != cursor_x || old_cursor_y != cursor_y) {
+            minefield_draw_at(field, cursor_x, cursor_y, old_cursor_x, old_cursor_y);
+            minefield_draw_at(field, cursor_x, cursor_y, cursor_x, cursor_y);
+            old_cursor_x = cursor_x;
+            old_cursor_y = cursor_y;
+        }
+
         printf("\033[%d;%dH", cursor_y + 1, cursor_x * 2 + 1); // Set cursor position
 
         fflush(stdout);
@@ -381,14 +403,17 @@ void game_loop(minefield_t **field_ptr)
 
         case 'e':
             minefield_mine(field, cursor_x, cursor_y);
+            render_full = true;
             break;
 
         case 'f':
             minefield_flag(field, cursor_x, cursor_y);
+            render_full = true;
             break;
 
         case 'n':
             minefield_reset(field);
+            render_full = true;
             break;
 
         case 'q':

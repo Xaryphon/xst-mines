@@ -37,6 +37,11 @@ typedef struct minefield {
     unsigned flag_count;
     unsigned unmined_count;
 
+    unsigned changed_x0;
+    unsigned changed_y0;
+    unsigned changed_x1;
+    unsigned changed_y1;
+
     mine_t data[/* width * height */];
 } minefield_t;
 
@@ -45,6 +50,10 @@ void minefield_reset(minefield_t *field)
     field->status = MINEFIELD_STATUS_EMPTY;
     field->flag_count = 0;
     field->unmined_count = field->width * field->height - field->mine_count;
+    field->changed_x0 = 0;
+    field->changed_y0 = 0;
+    field->changed_x1 = field->width;
+    field->changed_y1 = field->height;
 }
 
 minefield_t *minefield_recreate(minefield_t *field, unsigned width, unsigned height, unsigned mine_count)
@@ -132,10 +141,21 @@ mine_t minefield_get_mine(minefield_t *field, unsigned x, unsigned y)
     return *minefield_get_mine_ptr(field, x, y);
 }
 
+void _minefield_invalidate_at(minefield_t *field, unsigned x, unsigned y)
+{
+    if (field->changed_x0 > x) field->changed_x0 = x;
+    if (field->changed_y0 > y) field->changed_y0 = y;
+    if (field->changed_x1 <= x) field->changed_x1 = x + 1;
+    if (field->changed_y1 <= y) field->changed_y1 = y + 1;
+}
+
 bool _minefield_mine_around(minefield_t *field, unsigned x, unsigned y);
 
 bool _minefield_mine(minefield_t *field, unsigned x, unsigned y, bool is_user_input)
 {
+    // invalidate the area even if no change happened just because
+    _minefield_invalidate_at(field, x, y);
+
     mine_t *m = minefield_get_mine_ptr(field, x, y);
     switch (m->state) {
     case MINE_STATE_NORMAL:
@@ -208,6 +228,9 @@ void minefield_flag(minefield_t *field, unsigned x, unsigned y)
     assert(x < field->width && y < field->height);
     if (field->status != MINEFIELD_STATUS_GENERATED)
         return;
+
+    // invalidate the area even if no change happened just because
+    _minefield_invalidate_at(field, x, y);
 
     mine_t *m = &field->data[y * field->width + x];
     switch (m->state) {
@@ -327,13 +350,13 @@ void _minefield_draw_mine(minefield_t *field, unsigned cursor_x, unsigned cursor
     printf("\033[m"); // reset attributes
 }
 
-void minefield_draw_full(minefield_t *field, unsigned cursor_x, unsigned cursor_y)
+void minefield_draw_region(minefield_t *field, unsigned cursor_x, unsigned cursor_y, unsigned x0, unsigned x1, unsigned y0, unsigned y1)
 {
-    for (unsigned y = 0; y < field->height; y++) {
-        for (unsigned x = 0; x < field->width; x++) {
+    for (unsigned y = y0; y < y1; y++) {
+        printf("\033[%d;%dH", y + 1, x0 * 2 + 1);
+        for (unsigned x = x0; x < x1; x++) {
             _minefield_draw_mine(field, cursor_x, cursor_y, x, y);
         }
-        printf("\n");
     }
 }
 
@@ -341,6 +364,11 @@ void minefield_draw_at(minefield_t *field, unsigned cursor_x, unsigned cursor_y,
 {
     printf("\033[%d;%dH", y + 1, x * 2 + 1); // Set cursor position
     _minefield_draw_mine(field, cursor_x, cursor_y, x, y);
+}
+
+void minefield_draw_changed(minefield_t *field, unsigned cursor_x, unsigned cursor_y)
+{
+    minefield_draw_region(field, cursor_x, cursor_y, field->changed_x0, field->changed_x1, field->changed_y0, field->changed_y1);
 }
 
 void game_loop(minefield_t **field_ptr)
@@ -354,23 +382,23 @@ void game_loop(minefield_t **field_ptr)
     unsigned cursor_x = 0;
     unsigned cursor_y = 0;
 
-    bool render_full = true;
-
     for (;;) {
         print_status_line(*field_ptr, cursor_x, cursor_y);
         printf("\033[H");
 
-        if (render_full) {
-            minefield_draw_full(field, cursor_x, cursor_y);
-            render_full = false;
-            old_cursor_x = cursor_x;
-            old_cursor_y = cursor_y;
+        if (field->changed_x0 != UINT_MAX) {
+            minefield_draw_changed(field, cursor_x, cursor_y);
+            field->changed_x0 = UINT_MAX;
+            field->changed_x1 = 0;
+            field->changed_y0 = UINT_MAX;
+            field->changed_y1 = 0;
         } else if (old_cursor_x != cursor_x || old_cursor_y != cursor_y) {
             minefield_draw_at(field, cursor_x, cursor_y, old_cursor_x, old_cursor_y);
             minefield_draw_at(field, cursor_x, cursor_y, cursor_x, cursor_y);
-            old_cursor_x = cursor_x;
-            old_cursor_y = cursor_y;
         }
+
+        old_cursor_x = cursor_x;
+        old_cursor_y = cursor_y;
 
         printf("\033[%d;%dH", cursor_y + 1, cursor_x * 2 + 1); // Set cursor position
 
@@ -403,17 +431,14 @@ void game_loop(minefield_t **field_ptr)
 
         case 'e':
             minefield_mine(field, cursor_x, cursor_y);
-            render_full = true;
             break;
 
         case 'f':
             minefield_flag(field, cursor_x, cursor_y);
-            render_full = true;
             break;
 
         case 'n':
             minefield_reset(field);
-            render_full = true;
             break;
 
         case 'q':

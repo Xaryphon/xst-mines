@@ -546,6 +546,29 @@ int main(int argc, char **argv)
 
     if (width == UINT_MAX || height == UINT_MAX || mine_count == UINT_MAX) {
         printf("You must set a difficulty, or width, height and mine count!\n");
+        printf("\n");
+        printf("Usage:\n");
+        printf("mines -d difficulty [-f]\n");
+        printf("mines -w width -h height -m mines [-f]\n");
+        printf("\n");
+        printf("Options:\n");
+        printf("-d difficulty\n");
+        printf("        Available difficulties:\n");
+        printf("        10x10 10 easy\n");
+        printf("        16x16 40 normal medium\n");
+        printf("        30x16 99 hard\n");
+        printf("\n");
+        printf("-w width\n");
+        printf("-h height\n");
+        printf("-m mines\n");
+        printf("        Sets the width, height and mine count of the game field.\n");
+        printf("\n");
+        printf("-f      Enables fullscreen mode.\n");
+        printf("        \n");
+        printf("        Sets width and height to fill the terminal and\n");
+        printf("        adjusts mine count while keeping the same density.\n");
+        printf("\n");
+        printf("-F      Disables fullscreen mode.\n");
         return 1;
     }
 

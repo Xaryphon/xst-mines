@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 2
+
 #include <stdio.h>
 #include <limits.h>
 #include <stdint.h>
@@ -7,6 +9,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 
 #define MINE_STATE_NORMAL  0
 #define MINE_STATE_MINED   1
@@ -449,6 +452,19 @@ void game_loop(minefield_t **field_ptr)
     }
 }
 
+unsigned parse_uint(const char *restrict str)
+{
+    char * endptr;
+    long value = strtol(str, &endptr, 0);
+    if (str + strlen(str) != endptr)
+        return UINT_MAX;
+
+    if (value < 0)
+        return UINT_MAX;
+
+    return (unsigned)value;
+}
+
 int main(int argc, char **argv)
 {
     srand(0);
@@ -456,13 +472,101 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
 
+    unsigned difficulty = UINT_MAX;
+    unsigned width = UINT_MAX;
+    unsigned height = UINT_MAX;
+    unsigned mine_count = UINT_MAX;
+    bool fullscreen = false;
+
+    int c;
+    while ((c = getopt(argc, argv, "d:w:h:m:fF")) != -1) {
+        switch (c) {
+        case 'd':
+            switch (optarg[0]) {
+            case 'e':
+                difficulty = 0;
+                break;
+            case 'm':
+            case 'n':
+                difficulty = 1;
+                break;
+            case 'h':
+                difficulty = 2;
+                break;
+            default:
+                printf("Unknown difficulty \"%s\"!\n", optarg);
+                return 1;
+            }
+            break;
+        case 'w':
+            width = parse_uint(optarg);
+            if (width == UINT_MAX) {
+                printf("Unable to parse width \"%s\"!\n", optarg);
+                return 1;
+            }
+            break;
+        case 'h':
+            height = parse_uint(optarg);
+            if (height == UINT_MAX) {
+                printf("Unable to parse height \"%s\"!\n", optarg);
+                return 1;
+            }
+            break;
+        case 'm':
+            mine_count = parse_uint(optarg);
+            if (mine_count == UINT_MAX) {
+                printf("Unable to parse mine_count \"%s\"!\n", optarg);
+                return 1;
+            }
+            break;
+        case 'f':
+            fullscreen = true;
+            break;
+        case 'F':
+            fullscreen = false;
+            break;
+        default:
+            return 1;
+        }
+    }
+
+    if (difficulty == 0) {
+        width = 10;
+        height = 10;
+        mine_count = 10;
+    } else if (difficulty == 1) {
+        width = 16;
+        height = 16;
+        mine_count = 40;
+    } else if (difficulty == 2) {
+        width = 30;
+        height = 16;
+        mine_count = 99;
+    }
+
+    if (width == UINT_MAX || height == UINT_MAX || mine_count == UINT_MAX) {
+        printf("You must set a difficulty, or width, height and mine count!\n");
+        return 1;
+    }
+
+    if (fullscreen) {
+        double mine_density = (double)mine_count / width / height;
+        struct winsize ws;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
+            if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == -1)
+                return 1;
+        width = ws.ws_col / 2;
+        height = ws.ws_row - 2;
+        mine_count = mine_density * width * height;
+    }
+
     struct termios old;
     if (!terminal_init(&old)) {
         printf("Failed to initialize terminal!\n");
         return 1;
     }
 
-    minefield_t *field = minefield_create(10, 10, 10);
+    minefield_t *field = minefield_create(width, height, mine_count);
     if (!field) {
         terminal_try_restore(&old);
 

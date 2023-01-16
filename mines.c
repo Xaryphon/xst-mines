@@ -326,7 +326,7 @@ unsigned char minefield_get_mine_visual(minefield_t *field, unsigned x, unsigned
 
 // This thing takes 2 kB on 64-bit!
 const char *const _mine_visual_colored_map[UCHAR_MAX] = {
-    ['.'] = ".",
+    ['.'] = "\033[97m.",
     ['f'] = "\033[1;36mf", // bold, cyan
     ['?'] = "\033[1;34m?", // bold, blue
     ['x'] = "\033[1;31mx", // bold, red
